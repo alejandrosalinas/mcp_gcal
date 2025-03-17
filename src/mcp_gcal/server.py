@@ -2,7 +2,7 @@ from mcp.server.fastmcp import FastMCP
 import requests
 import urllib.parse
 import datetime
-import os.path
+import os
 import zoneinfo
 
 from google.auth.transport.requests import Request
@@ -19,6 +19,7 @@ This is the instruction / prompt for your MCP server. Include instructions on wh
 # Create an MCP server
 mcp = FastMCP("mcp_gcal", instructions=instructions)
 
+
 def get_gcal_credentials():
     """
     Looks for credentials and generate a valid token
@@ -29,11 +30,19 @@ def get_gcal_credentials():
         creds: Google API OAUTH2 Credentials
     """
     creds = None
+    GCAL_TOKEN_PATH = None
+    GCAL_CREDENTIALS_PATH = None
     SCOPES = ["https://www.googleapis.com/auth/calendar.readonly"]
+    try:
+        GCAL_TOKEN_PATH = os.environ['GCAL_TOKEN_PATH']
+        GCAL_CREDENTIALS_PATH = os.environ['GCAL_CREDENTIALS_PATH']
+        # GCAL_TOKEN_PATH = "/Users/salinas/.config/goose/mcp-gcal/token.json"
+        # GCAL_CREDENTIALS_PATH="/Users/salinas/.config/goose/mcp-gcal/credentials.json"
+    except KeyError as error:
+        raise KeyError(f"Can't find enviroment variable {error}") from error
+    except Exception as error:
+        raise error
     
-    #FIXME: These should read from an ENV variable
-    GCAL_TOKEN_PATH = "/Users/salinas/.config/goose/mcp-gcal/token.json"
-    GCAL_CREDENTIALS_PATH = "/Users/salinas/.config/goose/mcp-gcal/credentials.json"
     # The file token.json stores the user's access and refresh tokens, and is
     # created automatically when the authorization flow completes for the first
     # time.
@@ -44,17 +53,17 @@ def get_gcal_credentials():
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            #Needs credentials.json to generate the token
-            #credentials.json is downloaded from the GCP project
+            # Needs credentials.json to generate the token
+            # credentials.json is downloaded from the GCP project
             flow = InstalledAppFlow.from_client_secrets_file(
-            GCAL_CREDENTIALS_PATH, SCOPES
+                GCAL_CREDENTIALS_PATH, SCOPES
             )
             creds = flow.run_local_server(port=0)
     # Save the credentials for the next run
     with open("token.json", "w") as token:
         token.write(creds.to_json())
     
-    return(creds)
+    return (creds)
 
 @mcp.tool()
 def get_timezone_difference(tz1: str, tz2: str) -> dict:
@@ -130,8 +139,12 @@ def retrieve_calendar_events(id: str="primary") -> dict:
     Returns:
         result: Dict of call result and list of calendar events for the specified email
     """
-    creds = get_gcal_credentials()
     events = []
+    try:
+        creds = get_gcal_credentials()
+    except Exception as error:
+        return {"result":f"An error occurred: {error}", "events":events}
+    
     try:
         service = build("calendar", "v3", credentials=creds)
 
@@ -151,14 +164,19 @@ def retrieve_calendar_events(id: str="primary") -> dict:
         )
         events = events_result.get("items", [])
 
-    except HttpError as error:
-        return {"result":f"An error occurred: {error}", "events":events}
+    except Exception as error:
+        return {"result": f"An error occurred: {error}", "events": events}
     
-    return {"result":"success", "events":events}
+    return {"result": "success", "events": events}
 
 
 @mcp.tool()
-def retrieve_calendar_free_busy_slots(time_min: str, time_max: str, timezone:str="UTC", ids: list=["primary"]) -> dict:
+def retrieve_calendar_free_busy_slots(
+        time_min: str,
+        time_max: str,
+        timezone: str = "UTC",
+        ids: list = ["primary"]) -> dict:
+
     """Retrieves free and busy slots from the calendars of the ids list. 
 
     Useful to find slots to schedule meetings
@@ -167,18 +185,19 @@ def retrieve_calendar_free_busy_slots(time_min: str, time_max: str, timezone:str
         time_min (str): Starting time in isoformat
         time_max (str): Finish time in isoformat
         timezone (str, optional): The timezone of interest
-        ids (list, optional): A list containing emails for the calendars of interest. Defaults to the user's calendar.
+        ids (list, optional): A list containing emails for the 
+        calendars of interest. Defaults to the user's calendar.
 
     Returns:
         dict: A dictionary containing the free or busy slots for each of the ids requested
     """    
     
-    creds = get_gcal_credentials()
+    try:
+        creds = get_gcal_credentials()
+    except Exception as error:
+        return {"result": f"An error occurred: {error}", "response": {}}
     
-    #now = datetime.datetime.now()
-    #time_min = now.isoformat() + "Z"
-    #time_max = (now + datetime.timedelta(days=7)).isoformat() + "Z"
-    items = [{"id":x} for x in ids]
+    items = [{"id": x} for x in ids]
     query = {
         "timeMin": time_min,
         "timeMax": time_max,
@@ -194,31 +213,35 @@ def retrieve_calendar_free_busy_slots(time_min: str, time_max: str, timezone:str
         # Call the Calendar API
         response = service.freebusy().query(body=query).execute()
         
-    except HttpError as error:
+    except Exception as error:
         return {"result": f"An error occurred: {error}", "response": {}}
     
     return {"result": "success", "response": response}
 
+
 @mcp.tool()
 def retrieve_timezone(calendar_id: str = "primary") -> dict:
-    """Retrieves timezone for a given calendar. 
+    """Retrieves timezone for a given calendar.
     
     Args:
         id (str, optional): id / email of the calendar of interest. Defaults to the user's calendar
 
     Returns:
         dict: A dictionary containing the free or busy slots for each of the ids requested
-    """    
+    """ 
     
-    creds = get_gcal_credentials()
-        
+    try:
+        creds = get_gcal_credentials()
+    except Exception as error:
+        return {"result": f"An error occurred: {error}", "response": {}}
+    
     try:
         service = build("calendar", "v3", credentials=creds)
         
         # Call the Calendar API
         response = service.calendars().get(calendarId=calendar_id).execute()
         
-    except HttpError as error:
+    except Exception as error:
         return {"result": f"An error occurred: {error}", "response": {}}
     
     return {"result": "success", "response": response}
