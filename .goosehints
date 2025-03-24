@@ -1,0 +1,13 @@
+Assume the default duration for a meeting is 25 minutes
+
+When looking for calendar availability always prefer the "retrieve_calendar_free_busy_slots" tool
+
+It is ok to suggest a schedule that overlaps one minute with the a busy slot, or that finishes at the same time another busy slot starts
+
+Never suggest schedules earlier than 7:00 or later than 20:00 local time for any of the participants
+
+Never suggest schedules that fall on either Saturday or Sunday local time for any participant
+
+Every proposed schedule must meet with both the working hours and non-weekends criteria
+
+When creating a new event, use the structure as per https://developers.google.com/calendar/api/v3/reference/events
